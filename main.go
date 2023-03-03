@@ -15,12 +15,26 @@ func handleError(msg string, err error, exit bool) {
 	}
 }
 
+func createTable(ctx context.Context, conn *pgx.Conn) error {
+	_, err := conn.Exec(ctx, "CREATE TABLE IF NOT EXISTS widgets (name TEXT PRIMARY KEY, weight BIGINT)")
+	if err != nil {
+		handleError("unable to create table", err, false)
+		return fmt.Errorf("unable to create table: %w", err)
+	}
+	return nil
+}
+
 func run(ctx context.Context, dbURL string) error {
 	conn, err := pgx.Connect(ctx, dbURL)
 	if err != nil {
 		handleError("unable to connect to database", err, true)
 	}
 	defer conn.Close(ctx)
+
+	err = createTable(ctx, conn)
+	if err != nil {
+		return err
+	}
 
 	var name string
 	var weight int64
