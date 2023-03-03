@@ -8,15 +8,17 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func handleError(err error) {
-	fmt.Fprintf(os.Stderr, "%v\n", err)
-	os.Exit(1)
+func handleError(msg string, err error, exit bool) {
+	fmt.Fprintf(os.Stderr, "%s: %v\n", msg, err)
+	if exit {
+		os.Exit(1)
+	}
 }
 
 func run(ctx context.Context, dbURL string) error {
 	conn, err := pgx.Connect(ctx, dbURL)
 	if err != nil {
-		return fmt.Errorf("unable to connect to database: %w", err)
+		handleError("unable to connect to database", err, true)
 	}
 	defer conn.Close(ctx)
 
@@ -24,6 +26,7 @@ func run(ctx context.Context, dbURL string) error {
 	var weight int64
 	err = conn.QueryRow(ctx, "select name, weight from widgets where id=$1", 42).Scan(&name, &weight)
 	if err != nil {
+		handleError("query row failed", err, false)
 		return fmt.Errorf("query row failed: %w", err)
 	}
 	fmt.Println(name, weight)
@@ -35,11 +38,10 @@ func main() {
 
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
-		handleError(fmt.Errorf("DATABASE_URL environment variable not set"))
+		handleError("DATABASE_URL environment variable not set", fmt.Errorf("missing variable"), true)
 	}
 
-	err := run(ctx, dbURL)
-	if err != nil {
-		handleError(fmt.Errorf("error running query: %w", err))
+	if err := run(ctx, dbURL); err != nil {
+		handleError("run failed", err, true)
 	}
 }
