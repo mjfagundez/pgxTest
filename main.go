@@ -8,20 +8,20 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func handleError(msg string, err error, exit bool) {
+func handleError(msg string, err error, exit bool) error {
 	fmt.Fprintf(os.Stderr, "%s: %v\n", msg, err)
 	if exit {
 		os.Exit(1)
 	}
+	return fmt.Errorf("%s: %w", msg, err)
 }
 
 func createTable(ctx context.Context, conn *pgx.Conn) error {
 	_, err := conn.Exec(ctx, "CREATE TABLE IF NOT EXISTS widgets (name TEXT PRIMARY KEY, weight BIGINT)")
 	if err != nil {
 		handleError("unable to create table", err, false)
-		return fmt.Errorf("unable to create table: %w", err)
 	}
-	return nil
+	return err
 }
 
 func run(ctx context.Context, dbURL string) error {
@@ -33,7 +33,7 @@ func run(ctx context.Context, dbURL string) error {
 
 	err = createTable(ctx, conn)
 	if err != nil {
-		return err
+		handleError("unable to create table", err, false)
 	}
 
 	var name string
@@ -41,7 +41,6 @@ func run(ctx context.Context, dbURL string) error {
 	err = conn.QueryRow(ctx, "select name, weight from widgets where id=$1", 42).Scan(&name, &weight)
 	if err != nil {
 		handleError("query row failed", err, false)
-		return fmt.Errorf("query row failed: %w", err)
 	}
 	fmt.Println(name, weight)
 	return nil
