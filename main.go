@@ -19,41 +19,46 @@ func handleError(msg string, err error, exit bool) error {
 func createTable(ctx context.Context, conn *pgx.Conn) error {
 	_, err := conn.Exec(ctx, "CREATE TABLE IF NOT EXISTS widgets (name TEXT PRIMARY KEY, weight BIGINT)")
 	if err != nil {
-		handleError("unable to create table", err, false)
+		return fmt.Errorf("failed to create table, %w", err)
 	}
-	return err
+	return nil
 }
 
 func insertData(ctx context.Context, conn *pgx.Conn, name string, weight int64) error {
-	_, err := conn.Exec(ctx, "INSERT INTO widgets (name, weight) VALUES ($1, $2)", "Freeman", 80)
+	_, err := conn.Exec(ctx, "INSERT INTO widgets (name, weight) VALUES ($1, $2)", name, weight)
 	if err != nil {
-		handleError("unable to insert data", err, false)
+		return fmt.Errorf("failed to insert widget, %w", err)
 	}
-	return err
+	return nil
 }
 
-func run(ctx context.Context, dbURL string) error {
+func run(ctx context.Context) error {
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		handleError("DATABASE_URL environment variable not set", fmt.Errorf("missing variable"), true)
+	}
+
 	conn, err := pgx.Connect(ctx, dbURL)
 	if err != nil {
-		handleError("unable to connect to database", err, true)
+		return fmt.Errorf("unable to connect to database, %w", err)
 	}
 	defer conn.Close(ctx)
 
 	err = createTable(ctx, conn)
 	if err != nil {
-		handleError("unable to create table", err, false)
+		return err
 	}
 
-	err = insertData(ctx, conn, "widget1", 100)
+	err = insertData(ctx, conn, "Freeman", 100)
 	if err != nil {
-		handleError("unable to insert data", err, false)
+		return err
 	}
 
 	var name string
 	var weight int64
-	err = conn.QueryRow(ctx, "select name, weight from widgets where =$1", 42).Scan(&name, &weight)
+	err = conn.QueryRow(ctx, "select name, weight from widgets where name=$1", "Freeman").Scan(&name, &weight)
 	if err != nil {
-		handleError("query row failed", err, false)
+		return err
 	}
 	fmt.Println(name, weight)
 	return nil
@@ -62,12 +67,7 @@ func run(ctx context.Context, dbURL string) error {
 func main() {
 	ctx := context.Background()
 
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		handleError("DATABASE_URL environment variable not set", fmt.Errorf("missing variable"), true)
-	}
-
-	if err := run(ctx, dbURL); err != nil {
+	if err := run(ctx); err != nil {
 		handleError("run failed", err, true)
 	}
 }
